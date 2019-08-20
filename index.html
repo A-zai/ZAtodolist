@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title>上海0508</title>
+		<link rel="stylesheet" href="css/normalize.css" />
+		<link rel="stylesheet" href="css/icon.css" />
+		<link rel="stylesheet" href="css/extend.css" />
+		<link rel="stylesheet" href="css/todolist.css" />
+		<link rel="stylesheet" href="css/jquery.datetimepicker.min.css" />
+	</head>
+	<body>
+		<div id="wrap">
+			<div class="todolist">
+				<h1 class="title">我的Todo</h1>
+				<form action="#" class="form clearfix">
+					<input type="text" placeholder="e.g.晚上记得敲代码" autofocus="autofocus" />
+					<input type="submit" value="submit" />
+				</form>
+				<div class="list">
+					
+				</div>
+				<div class="mask"></div>
+				<div class="detail">
+					<div class="main clearfix">
+						<div class="content">
+							<div class="title">拼命玩老刘</div>
+							<input class="titleInput" type="text"  />
+							<textarea>damu</textarea>
+							<input id="datetimepicker" type="text" >
+						</div>
+					</div>
+					<div class="footer">
+						<i class="icon-pen"></i>
+					</div>
+				</div>
+			</div>			
+		</div>
+	</body>
+	<script src="js/moment.js"></script>
+	<script src="js/store.js"></script>
+	<script src="js/jquery-1.12.4.js"></script>
+	<script src="js/jquery.datetimepicker.full.min.js"></script>
+	<script>
+		$(function(){
+			/*获取元素
+			 	$list:列表的包裹器
+			 	$form:输入表单
+			 	$delBtns:所有的删除按钮
+			 * */
+			var $list = $("#wrap > .todolist .list");
+			var $form = $("#wrap > .todolist .form");
+			var $formInput = $("#wrap > .todolist .form input[type=text]");
+			var $delBtns = null;
+			
+			var $settingBtns = null;
+			var $mask = $("#wrap > .todolist .mask");
+			var $detail = $("#wrap > .todolist .detail");
+			var $title=$("#wrap > .todolist .detail .title");
+			var $titleInput=$("#wrap > .todolist .detail input[type=text].titleInput");
+			var $textarea=$("#wrap > .todolist .detail textarea");
+			var $date=$("#wrap > .todolist .detail input[type=text]#datetimepicker");
+			var $updateBtn=$("#wrap > .todolist .detail .footer");
+			var updateIndex=-1;
+			var $items = null;
+			var $completeBtns = null;
+			//datetimepicker组件
+			var $datetimepicker = $("#datetimepicker");
+			$datetimepicker.datetimepicker();
+			//初始化渲染
+			var taskArr = store.get("todolist")||[];
+			render_todolist();
+			//新增
+			$form.submit(function(ev){
+				ev.preventDefault();
+				//获取input输入数据
+				var title = $(this).find("input[type=text]").val();
+				if(!title) return;
+				//修改数据 重新渲染
+				var newTask={
+					title:title
+				}
+				taskArr.unshift(newTask);
+				render_todolist();
+				
+				//清空输入框
+				$(this).find("input[type=text]").val("")
+			})
+			//双击title出现输入框
+			$title.dblclick(function(){
+				$(this).hide();
+				$titleInput.show()
+			})
+			//更新
+			$updateBtn.click(update);
+			//响铃
+			remind();
+			//表单回显
+			$formInput.val(sessionStorage.getItem("formInput"))
+			$formInput[0].addEventListener('input', function(){
+				sessionStorage.setItem("formInput",this.value)
+			})
+			
+			function remind(){
+				setInterval(function(){
+					var nowTime = new Date().getTime();
+					taskArr.forEach(function(task,index){
+						if(task&&task.date&&!task.remind){
+							var taskTime = new Date(task.date).getTime();
+							if(nowTime - taskTime>1){
+								task.remind=true;
+								render_todolist();
+							}
+						}
+					})
+				},300)
+			}
+			
+			
+			//标记为已完成需要的方法
+			function listen_completeBtns(){
+				$completeBtns.click(function(ev){
+					ev.preventDefault();
+					var index = $(this).parent().find(".del").data("index");
+					var task = taskArr[index];
+					if(task.isCompleted){
+						task.isCompleted = false;
+					}else{
+						task.isCompleted = true;
+					}
+					render_todolist();
+				})
+			}
+			
+			
+			
+			//更新需要的方法
+			function update(){
+				//更新数据 重新渲染
+				taskArr[updateIndex].title = $titleInput.val();
+				taskArr[updateIndex].desc = $textarea.val();
+				taskArr[updateIndex].date = $date.val();
+				//重置响铃任务!!!
+				taskArr[updateIndex].remind = false;
+				render_todolist();
+				//关闭弹出层
+				hide_mask_detail();
+				//隐藏输入框  显示title-div
+				$title.show();
+				$titleInput.hide()
+			}
+			
+			
+			
+			//详情需要的方法
+			function listen_settingsBtn_items(){
+				$settingBtns.click(function(){
+					var index = $(this).data("index");
+					updateIndex = index;
+					show_mask_detail(index)
+				})
+				$items.dblclick(function(){
+					var index = $(this).find(".settings").data("index");
+					updateIndex = index;
+					show_mask_detail(index)
+				})
+			}
+			
+			function show_mask_detail(index){
+				$mask.show();
+				$detail.show();
+				
+				$title.html(taskArr[index].title||"title");
+			    $titleInput.val(taskArr[index].title||"title");
+			    $textarea.val(taskArr[index].desc||"desc");
+			    $date.val(taskArr[index].date||moment().format("YYYY-MM-DD hh:mm"));
+			}
+			function hide_mask_detail(){
+				$mask.hide();
+				$detail.hide();
+			}
+			
+			
+			//删除功能需要的方法
+			function listen_delBtn(){
+				$delBtns.click(function(){
+					var index = $(this).data("index");
+					if(confirm("您是否真的要删除此项任务?")){
+						del_task(index)
+					}
+				})
+			}
+			function del_task(index){
+				//修改数据 重新渲染
+				taskArr.splice(index,1);
+				render_todolist();
+			}
+			
+			//初始化渲染 & 根据数据进行重绘
+			function render_todolist(){
+				store.set('todolist',taskArr)
+
+				$list.html("");
+				var completedArr=[];
+				
+				/*整个项目都是数据驱动的!!!
+					我们整个逻辑都围绕着taskArr在设计
+					任何查询 排序相关的功能都不能对taskArr进行CD操作!!*/  
+				
+				taskArr.forEach(function(task,index){
+					if(task.isCompleted){
+						//!!!!!维护了所有item的下标!
+						completedArr[index]=task;
+					}else{
+						var $item = create_task_item(task,index);
+					 	$list.append($item)
+					}
+				})
+				
+				completedArr.forEach(function(task,index){
+					if(!task) return;
+					var $item = create_task_item(task,index);
+					$list.append($item)
+				})
+				
+				
+				//获取动态添加的节点  绑定对应的事件
+				
+				//删除
+				$delBtns = $("#wrap > .todolist .list .item .del");
+				listen_delBtn();
+				//详情
+				$settingBtns = $("#wrap > .todolist .list .item .settings");
+				$items = $("#wrap > .todolist .list .item");
+				listen_settingsBtn_items();
+				//标记已完成
+				$completeBtns = $("#wrap > .todolist .list .item input[type=checkbox]");
+				listen_completeBtns()
+			}
+			//创建一个任务(item)
+			function create_task_item(task,index){
+				var tpl = '<div class="item '+(task.isCompleted?"isCompleted":"")+'">'+
+							'<div class="icon-megaphone megaphone '+(task.remind&&!task.isCompleted?"":"hide")+'"></div>'+
+							'<input type="checkbox" '+(task.isCompleted?"checked":"")+' />'+
+							'<span>'+(task.title)+'</span>'+
+							'<span>'+
+								'<i class="icon-trash del" data-index='+(index)+'></i>'+
+								'<i class="icon-settings settings" data-index='+(index)+'></i>'+
+							'</span>'+
+						  '</div>'	
+				return $(tpl);
+			}
+		})
+	</script>
+</html>
